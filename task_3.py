@@ -1,80 +1,117 @@
 import timeit
+def build_shift_table(pattern):
+    """Створити таблицю зсувів для алгоритму Боєра-Мура."""
+    table = {}
+    length = len(pattern)
+    # Для кожного символу в підрядку встановлюємо зсув рівний довжині підрядка
+    for index, char in enumerate(pattern[:-1]):
+        table[char] = length - index - 1
+    # Якщо символу немає в таблиці, зсув буде дорівнювати довжині підрядка
+    table.setdefault(pattern[-1], length)
+    return table
+
 def boyer_moore(text, pattern):
-    n = len(text)
-    m = len(pattern)
-    if m == 0:
-        return 0
-    last = {}
-    for k, c in enumerate(pattern):
-        last[c] = k
-    i = m - 1
-    k = m - 1
-    while i < n:
-        if text[i] == pattern[k]:
-            if k == 0:
-                return i
-            i -= 1
-            k -= 1
+    # Створюємо таблицю зсувів для патерну (підрядка)
+    shift_table = build_shift_table(pattern)
+    i = 0  # Ініціалізуємо початковий індекс для основного тексту
+
+    # Проходимо по основному тексту, порівнюючи з підрядком
+    while i <= len(text) - len(pattern):
+        j = len(pattern) - 1  # Починаємо з кінця підрядка
+
+        # Порівнюємо символи від кінця підрядка до його початку
+        while j >= 0 and text[i + j] == pattern[j]:
+            j -= 1  # Зсуваємось до початку підрядка
+
+        # Якщо весь підрядок збігається, повертаємо його позицію в тексті
+        if j < 0:
+            return i  # Підрядок знайдено
+
+        # Зсуваємо індекс i на основі таблиці зсувів
+        # Це дозволяє "перестрибувати" над неспівпадаючими частинами тексту
+        i += shift_table.get(text[i + len(pattern) - 1], len(pattern))
+
+    # Якщо підрядок не знайдено, повертаємо -1
+    return -1
+
+
+def compute_lps(pattern):
+    lps = [0] * len(pattern)
+    length = 0
+    i = 1
+
+    while i < len(pattern):
+        if pattern[i] == pattern[length]:
+            length += 1
+            lps[i] = length
+            i += 1
         else:
-            j = last.get(text[i], -1)
-            i += m - min(k, j + 1)
-            k = m - 1
+            if length != 0:
+                length = lps[length - 1]
+            else:
+                lps[i] = 0
+                i += 1
+    return lps
 
-    return -1
-
-def kmp(text, pattern):
-    n = len(text)
-    m = len(pattern)
-    if m == 0:
-        return 0
-    pi = [0] * m
-    j = 0
-    for i in range(1, m):
-        while j > 0 and pattern[j] != pattern[i]:
-            j = pi[j - 1]
-        if pattern[j] == pattern[i]:
+def kmp(main_string, pattern):
+    M = len(pattern)
+    N = len(main_string)
+    lps = compute_lps(pattern)
+    i = j = 0
+    while i < N:
+        if pattern[j] == main_string[i]:
+            i += 1
             j += 1
-        pi[i] = j
-    j = 0
-    for i in range(n):
-        while j > 0 and pattern[j] != text[i]:
-            j = pi[j - 1]
-        if pattern[j] == text[i]:
-            j += 1
-        if j == m:
-            return i - m + 1
-    return -1
+        elif j != 0:
+            j = lps[j - 1]
+        else:
+            i += 1
+        if j == M:
+            return i - j
 
-def rabin_karp(text, pattern):
-    n = len(text)
-    m = len(pattern)
-    if m == 0:
-        return 0
-    if n < m:
-        return -1
-    prime = 101  # просте число
-    p = 0  # hash pattern
-    t = 0  # hash text
-    h = 1
-    d = 256  # розмір алфавіту
-    for i in range(m - 1):
-        h = (h * d) % prime
-    for i in range(m):
-        p = (d * p + ord(pattern[i])) % prime
-        t = (d * t + ord(text[i])) % prime
-    for i in range(n - m + 1):
-        if p == t:
-            match = True
-            for j in range(m):
-                if text[i + j] != pattern[j]:
-                    match = False
-                    break
-            if match:
+    return -1  # якщо підрядок не знайдено
+
+
+
+def polynomial_hash(s, base=256, modulus=101):
+    """
+    Повертає поліноміальний хеш рядка s.
+    """
+    n = len(s)
+    hash_value = 0
+    for i, char in enumerate(s):
+        power_of_base = pow(base, n - i - 1) % modulus
+        hash_value = (hash_value + ord(char) * power_of_base) % modulus
+    return hash_value
+
+def rabin_karp(main_string, substring):
+    # Довжини основного рядка та підрядка пошуку
+    substring_length = len(substring)
+    main_string_length = len(main_string)
+    
+    # Базове число для хешування та модуль
+    base = 256 
+    modulus = 101  
+    
+    # Хеш-значення для підрядка пошуку та поточного відрізка в основному рядку
+    substring_hash = polynomial_hash(substring, base, modulus)
+    current_slice_hash = polynomial_hash(main_string[:substring_length], base, modulus)
+    
+    # Попереднє значення для перерахунку хешу
+    h_multiplier = pow(base, substring_length - 1) % modulus
+    
+    # Проходимо крізь основний рядок
+    for i in range(main_string_length - substring_length + 1):
+        if substring_hash == current_slice_hash:
+            if main_string[i:i+substring_length] == substring:
                 return i
-        if i < n - m:
-            t = (d * (t - ord(text[i]) * h) + ord(text[i + m])) % prime
-            if t < 0:
-                t += prime
+
+        if i < main_string_length - substring_length:
+            current_slice_hash = (current_slice_hash - ord(main_string[i]) * h_multiplier) % modulus
+            current_slice_hash = (current_slice_hash * base + ord(main_string[i + substring_length])) % modulus
+            if current_slice_hash < 0:
+                current_slice_hash += modulus
+
     return -1
 
 text = "simsalabim"
