@@ -25,6 +25,6 @@ def binary_search(arr, x):
 
 # Example usage:
 arr = [0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.7, 1.9]
-x = 1.0
+x = 1.6
 result = binary_search(arr, x)
 print(result)
